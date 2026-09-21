@@ -195,7 +195,9 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 | 主包版本 | 状态 |
 |---|---|
 | `0.1.1-rc.2` | **已在真实 DSH 上跑通**（长时间使用：标题刷新、回合打标、pin、活开关都验过） |
-| `>= 0.1.2 < 0.2.0` | **预期可用**：本插件只依赖「两线同名」的事件名与服务名（`user/message`、`session/title`、`session/title-llm-request`、`turn/start`、`turn/end`、`request/header`、`llm`/`sessions`/`sessionTitle` 服务），这些名字在 0.1.2–0.1.5 线上未变；且 `session-title` 的 provider 契约（`register({ id, automatic, generate })`）也未变。**未逐版本端到端实测** |
+| `0.1.5` 线（静态核对 `0.1.5-rc.1` / `0.1.5-rc.2`，2026-09-21） | ✅ **本插件用到的 11 条宿主契约逐条取证仍在**：事件 `session/event`、`user/message`、`session/title`、`turn/start`、`turn/end`、`request/header`、`session/disposed`，服务 `llm`（含 `llm/stream` waterfall）、`sessions`、`sessionTitle`。**本插件不 import 主包任何符号**（全部为字符串契约，集中在本仓 `lib/host-protocol.js`） |
+| `0.1.5-rc.2` 端到端 | ⚠️ **未实测**（与 rc.1 的差异未取证） |
+| 自有诊断事件 `session/title-llm-request` | 本插件自身写的诊断事件；官方 0.1.5 线未见同名事件（不影响功能，仅供对账） |
 | `>= 0.2.0` | **不支持**（未评估；主包若改标题事件 / provider 契约即失效） |
 
 升级主包时请重点复核 `lib/host-protocol.js`（本插件内联协议常量的唯一落点）：
@@ -218,7 +220,7 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 6. **`bundles` 加载方式未实测**（本插件无 client 半，理论可行，但实测路径是 `cordis.patch.yml` 的 insert）。
 7. **群聊 / 多用户场景未评估**：本插件按"人类消息 = `source.kind==='user'`"取文本，
    若你的部署里有多来源消息，选材口径需自行核对。
-8. **`>=0.1.2` 线未实测**（见第六节）。
+8. **`0.1.5` 线只做过静态核对、未端到端实测**（见第六节）。
 
 ---
 
@@ -267,7 +269,25 @@ node scripts/verify-live.mjs --base http://127.0.0.1:3090 --home <隔离实例 h
 
 ---
 
-## 十、许可
+## 十、相关组件
+
+同属 DSH 生态的伴生组件，各自独立仓、独立版本、许可各自独立；它们都回链到同一份文档仓
+[`ops-handoff-design`](https://github.com/kira905/ops-handoff-design)
+（Gitee 镜像 <https://gitee.com/kira905/ops-handoff-design>）：
+
+| 组件仓 | 做什么 | 与本组件的关系 |
+|---|---|---|
+| `dsh-session-title-live` | 会话标题跟着对话实时更新 | **本仓** |
+| [`dsh-butler-archive`](https://github.com/kira905/dsh-butler-archive) | 会话归档管理（把老会话物理移出 `sessions` 目录，可列出 / 预览 / 恢复 / 删除） | 同一个问题的两面：本仓治「标题跟会话内容对不上」，它治「老会话占着启动与加载开销」——都为了**侧边栏这个唯一入口还能用** |
+| [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | 只读生态总览面板（插件加载 / 补丁 / 技能 frontmatter / 升级风险） | 它的第 ① 类「加载状态」抓的就是宿主首页的 boot 清单——**本插件到底加载上了没有，在那里一眼能看到**（本插件没有 client 半，加载方式只有 `cordis.patch.yml` 的 insert，见第七节第 6 条） |
+| [`dsh-diagnostic-tools`](https://github.com/kira905/dsh-diagnostic-tools) | 诊断取证工具组：依赖闭包体检 + 会话图片附件对账 | 宿主升级前后先跑它的 `closure/`；本插件把宿主契约集中在一个文件（`lib/host-protocol.js`），那份清单就是升级时要逐条核对的输入 |
+
+> 组件之间**没有代码依赖**，也不共享运行时 —— 之所以互指，是因为它们回答的是同一类人的同一批问题
+> （长期在自有机器上跑 agent：装得下、找得到、看得见、查得清）。谁装谁不装，互不影响。
+
+---
+
+## 十一、许可
 
 **当前状态：待拍板（暂按 AGPL-3.0 全文备置）。**
 

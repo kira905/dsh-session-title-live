@@ -1,0 +1,62 @@
+# 变更记录
+
+本文件只记**使用者能观察到**的变化（新增 / 修复 / 破坏性变更），倒序（最新在最上）。
+版本号怎么定、发布前要跑什么，见 [`docs/RELEASING.md`](./docs/RELEASING.md)。
+
+## [0.2.0] - 未发布（首个开源版）
+
+这一版做的是**通用化**：把一份在私人环境里跑通的插件，抽成别人也能装、也能配的形态。
+功能行为与 0.1.0 一致；变化集中在"可配置性"与"不许再出现本机痕迹"。
+
+### Added
+
+- **配置层**（`lib/config.js`）：全部参数可外置 —— 默认值 ⊕ `SESSION_TITLE_LIVE_CONFIG` 指向的
+  JSON ⊕ 宿主 `cordis.patch.yml` 的 `config:` 三层合并；对象段深合并（只覆盖你写的键）；
+  非法值清洗成默认值并打一条 warn，不会让插件起不来。
+- **目录解析通用化**：`SESSION_TITLE_LIVE_HOME` > `DSH_HOME` > `~/.dsh`（`os.homedir()`），
+  跨平台，源码里不再有任何机器路径。
+- **状态前缀文案字典化**（`marks.prefix` / `marks.textToState` / `marks.baseFallback`）：
+  前缀形状可换（例如 `[RUN]` / `[DONE]`）；识别表**自动合并**「本插件写出去的前缀」与
+  「要识别的历史前缀」两个来源，因此自定义形状的前缀不会被叠层。
+- **提示词可定制**：内置系统提示词可整体覆盖（`systemPrompt`），引导句可配（`promptIntro`），
+  标题落盘字节上限可配（`maxTitleBytes`，默认 80）。
+- **活开关泛化**：可指向任意形状相同的 JSON 开关文件（默认 `<home>/dsh-session-title-live.json`；
+  也支持顶层 `{ "enabled": false }` 简写）+ 环境变量 `SESSION_TITLE_LIVE_DISABLED=1` 立即停；
+  恢复提示可配，不再指向某个具体命令行工具。
+- **验证脚本三件**：
+  - `scripts/verify-source.mjs`：语法 + 配置层真实行为 + 脱敏扫描（本机标识由 `BUILD_*` 注入）；
+  - `scripts/test-e2e.mjs`：干净临时路径 + 一份**非默认**配置 + 假宿主跑完整流程；
+  - `scripts/verify-live.mjs`：对运行中的真实例做**只读**核对（协议常量是否过时、事件形状是否还成立）。
+- **合规件**：`README.md` / `CHANGELOG.md` / `docs/RELEASING.md` / `LICENSE`。
+- **脱敏扫描支持"内部专有名"注入**（`BUILD_INTERNAL_TERMS`）：内部组件名与项目代号**没有可枚举的
+  形态**（不是 id、不是路径、不是称呼），只有从发布环境注入才拦得住 —— 它挡的正是"测试样本或注释里
+  顺手写了自己环境里的举例"这一类残留。
+
+### Changed
+
+- 主包协议常量（事件名 / 服务名）改为本包内联的 `lib/host-protocol.js`：单文件、只需核对一处，
+  不再依赖任何外部"宿主适配层"文件。
+- 注释与文案全面去个人化：称谓、机器名、用户名、路径、会话 id、内部编号一律移除。
+- 事件 / 服务的裸字面量全部收敛到 `EV.*` / `SVC.*`。
+- **脱敏扫描器不再内置任何私人称呼**：规则表里原本硬编码了若干私人自称 —— 那等于把要藏的东西
+  写进要发布的源码（扫描器自身也会进公开仓）。现在这一类改由 `BUILD_PERSONAL_TERMS` 注入
+  （与机器名 / 用户名同一条通道），扫描器源码内零真实标识。
+  **代价（发布前必读）**：不注入时这一类不会再被自动拦 ⇒ 发布前**必须**带上该变量再跑一遍
+  （`docs/RELEASING.md` 检查单已写明）。
+
+### Fixed
+
+- **自定义前缀形状会被叠层**：若把 `marks.prefix` 配成 `[RUN]` 这类形状，而识别字典仍是
+  `【运行】…`（默认值），上一轮写出的 `[RUN]` 认不出来 → 下一轮标题会变成 `[DONE][RUN]base`。
+  现在识别表同时收 `prefix` 的字面值，不再叠层。
+- **测试样本与注释里的"语义级专有名"残留**：形态规则拦不住内部组件名、内部任务编号、私人对话样本
+  （它们既不是路径也不是 id）。已逐处换成中性样本，并给扫描器补上 `BUILD_INTERNAL_TERMS` 注入项，
+  使这一类在后续改动里可被自动拦住。
+
+### Breaking
+
+- **活开关真相源变了**：默认开关文件名从"某个自定义自治文件"改为 `<home>/dsh-session-title-live.json`。
+  迁移：把 `killSwitch.file` 指到你原来的文件（结构相同即可），或直接删掉旧文件（缺文件 = 继续工作）。
+- `killSwitchPath()` 无参调用不再读 `BUTLER_DSH_HOME`，改为
+  `SESSION_TITLE_LIVE_HOME` > `DSH_HOME` > `~/.dsh`。
+- `parseKillSwitch(text)` 新增第二个可选参数 `moduleId`（默认 `session-title-live`，与旧行为一致）。

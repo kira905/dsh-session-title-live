@@ -1,0 +1,46 @@
+{
+  "name": "dsh-session-title-live",
+  "version": "0.2.0",
+  "private": false,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "AGPL-3.0-only",
+  "description": "Live session-title provider for dsh: regenerates the session title after EVERY user message (automatic: \"all-prompts\"), summarizing the most recent messages within a byte budget. Zero dependencies.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "session-title",
+    "cordis"
+  ],
+  "files": [
+    "lib",
+    "examples",
+    "cordis.patch.yml.example",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.1.1-rc.2 <0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "verify": "node scripts/verify-source.mjs .",
+    "test": "node scripts/verify-source.mjs . && node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs",
+    "test:e2e": "node scripts/test-e2e.mjs"
+  }
+}

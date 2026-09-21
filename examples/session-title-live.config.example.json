@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "dsh-session-title-live 的配置文件示例：**下面每一项都是默认值**（照抄即当前行为，改了才生效）。",
+    "用法两种（任选）：",
+    "  ① 存成 <home>/dsh-session-title-live.config.json —— 但注意：默认读取的路径由 SESSION_TITLE_LIVE_CONFIG 指定；",
+    "     未设该环境变量时**不会**自动读任何文件，只用默认值 + 宿主 cordis config；",
+    "  ② 用环境变量指过来：SESSION_TITLE_LIVE_CONFIG=/path/to/this.json",
+    "优先级：本文件 < cordis.patch.yml 的 config 段（宿主 config 覆盖文件）。",
+    "路径口径：home = SESSION_TITLE_LIVE_HOME > DSH_HOME > ~/.dsh（跨平台，无机器路径硬编码）。",
+    "未知键会被忽略（不报错），方便你保留自己的注释性字段。"
+  ],
+  "targetWords": 5,
+  "targetCjkCharacters": 10,
+  "maxInputBytes": 32768,
+  "maxOutputTokens": 128,
+  "maxTitleBytes": 80,
+  "timeoutMs": 30000,
+  "_comment_route": "provider 与 model 必须成对；都省略 = 跟随会话主请求的路由。",
+  "promptIntro": "Generate the session title from this JSON array of human messages:",
+  "_comment_systemPrompt": "自定义系统提示词（字符串或字符串数组）。省略 = 用内置提示词（见 lib/index.js 的 systemPrompt）。",
+  "selfSchedule": true,
+  "selfScheduleMaxHumans": 32,
+  "_comment_minIncrementChars": "已有标题时，本轮新增人类消息字数低于此值就不重生成（0 = 关闭这道门槛）。",
+  "minIncrementChars": 20,
+  "themeAnchorMax": 6,
+  "turnMarks": true,
+  "markBaseBudgetBytes": 64,
+  "markProvider": "dsh-session-title-live#turn-mark",
+  "marks": {
+    "_comment": [
+      "标题状态前缀字典：prefix = 写标题时用；textToState = 读标题时识别。",
+      "textToState 的键**不要带括号**（正则里会自动包 【】）；不想用某前缀就从表里删掉。",
+      "baseFallback = 标题只剩前缀时的兜底基名。"
+    ],
+    "prefix": {
+      "running": "【运行】",
+      "done": "【完成】"
+    },
+    "textToState": {
+      "运行": "running",
+      "完成": "done",
+      "待命": "idle",
+      "已中断": "interrupted"
+    },
+    "baseFallback": "会话"
+  },
+  "killSwitch": {
+    "_comment": [
+      "活开关：每回合 / 每次生成前现读该 JSON 文件（带 cacheMs 时窗缓存），关闭时零写入、零 token。",
+      "文件形状：{\"modules\":{\"<moduleId>\":{\"enabled\":false,\"why\":\"…\"}}} 或顶层简写 {\"enabled\":false}。",
+      "读不到 / 损坏 / 没有该模块键 = **继续工作**（fail-safe）。",
+      "另有环境变量 SESSION_TITLE_LIVE_DISABLED=1 可一键停（优先于文件）。"
+    ],
+    "file": "dsh-session-title-live.json",
+    "moduleId": "session-title-live",
+    "cacheMs": 3000,
+    "enabled": true
+  }
+}

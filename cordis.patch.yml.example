@@ -1,0 +1,51 @@
+# dsh-session-title-live — cordis patch 片段（示例 / 模板）
+#
+# 用法：把下面这一段追加到你所用的 profile 的 cordis.patch.yml 末尾
+#       （profile 目录：<DSH_HOME>/profiles/<name>/cordis.patch.yml）。
+#
+# 两件事一起做：
+#   ① **关掉官方那个只在首轮生成标题的 provider**（`session-title-llm`），
+#      否则两条 provider 会抢着写标题（本插件与官方 provider 注册的 automatic 档不同，
+#      同时开着时官方那条仍会在首轮生成，看到的表现是"首轮标题被官方覆盖"）；
+#   ② insert 本插件（`automatic: "all-prompts"`：每次人类消息后重生成标题）。
+#      核心的 `session-title` 服务保持不动（本插件注册进它，不替换它）。
+#
+# ⚠️ insert 前先确认 id 不与已有条目重复（重复会崩 "duplicate loader entry id"）：
+#    grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
+#
+# config 段可选：不写 = 用 lib/config.js 的默认值，再叠 <home>/dsh-session-title-live.config.json
+# （用 SESSION_TITLE_LIVE_CONFIG 指到别的路径也行）。这里的键等价于**优先级最高的一层**默认值。
+#
+# 插件的 id / name 请与 package.json 的包名一致（`dsh-session-title-live`）；
+# 上面示例里的 patch 条目 id 用简写 `session-title-live`——两者都行，只要不与别的条目重复。
+
+- disable:
+    - id: session-title-llm
+
+- insert:
+    - id: session-title-live
+      name: 'dsh-session-title-live'
+      # config:
+      #   targetWords: 5
+      #   targetCjkCharacters: 10
+      #   maxInputBytes: 32768
+      #   maxOutputTokens: 128
+      #   maxTitleBytes: 80
+      #   timeoutMs: 30000
+      #   # 想用固定路由生成标题就成对写；省略 = 跟随会话主请求的 provider/model
+      #   # provider: deepseek
+      #   # model: deepseek-chat
+      #   selfSchedule: true
+      #   selfScheduleMaxHumans: 32
+      #   minIncrementChars: 20
+      #   themeAnchorMax: 6
+      #   turnMarks: true
+      #   markBaseBudgetBytes: 64
+      #   marks:
+      #     prefix: { running: '【运行】', done: '【完成】' }
+      #     textToState: { '运行': running, '完成': done, '待命': idle, '已中断': interrupted }
+      #     baseFallback: 会话
+      #   killSwitch:
+      #     file: dsh-session-title-live.json
+      #     moduleId: session-title-live
+      #     cacheMs: 3000

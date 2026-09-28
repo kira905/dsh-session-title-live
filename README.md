@@ -23,6 +23,22 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 
 ---
 
+## 设计依据
+
+本组件是「[ops-handoff-design](https://github.com/kira905/ops-handoff-design)」所述运维体系的一个实现，
+设计依据（对应文档仓约定的固定四问）：
+
+- **它为什么存在、边界在哪** → 见《自治式运维管家》**§2 会话生命周期覆盖矩阵**，以及《体系全景与家规》**§3.8 会话生命周期的自治**
+- **它与宿主版本的兼容区间** → 见《多机交接与云中继》**§4.5「兼容性要求」**（另见本 README 第六节「兼容性」）
+- **本组件特有的坑与实测** → 见本 README「已知限制」一节
+- **文档仓地址** → Gitee（镜像）<https://gitee.com/kira905/ops-handoff-design>
+  ｜ GitHub（主）<https://github.com/kira905/ops-handoff-design>
+  （文档仓的组件索引表回指本仓；两仓互链、版本各自独立）
+
+> 设计稿里不写具体仓库地址（写死即死链），实现清单统一收在文档仓的组件索引表里——本仓只负责回链章节。
+
+---
+
 ## 一、能力
 
 | 功能 | 说明 |
@@ -281,6 +297,8 @@ node scripts/verify-live.mjs --base http://127.0.0.1:3090 --home <隔离实例 h
 | [`dsh-butler-archive`](https://github.com/kira905/dsh-butler-archive) | 会话归档管理（把老会话物理移出 `sessions` 目录，可列出 / 预览 / 恢复 / 删除） | 同一个问题的两面：本仓治「标题跟会话内容对不上」，它治「老会话占着启动与加载开销」——都为了**侧边栏这个唯一入口还能用** |
 | [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | 只读生态总览面板（插件加载 / 补丁 / 技能 frontmatter / 升级风险） | 它的第 ① 类「加载状态」抓的就是宿主首页的 boot 清单——**本插件到底加载上了没有，在那里一眼能看到**（本插件没有 client 半，加载方式只有 `cordis.patch.yml` 的 insert，见第七节第 6 条） |
 | [`dsh-diagnostic-tools`](https://github.com/kira905/dsh-diagnostic-tools) | 诊断取证工具组：依赖闭包体检 + 会话图片附件对账 | 宿主升级前后先跑它的 `closure/`；本插件把宿主契约集中在一个文件（`lib/host-protocol.js`），那份清单就是升级时要逐条核对的输入 |
+| [`dsh-task-board-local`](https://github.com/kira905/dsh-task-board-local) | 自维护任务看板（卡片 = 一次真实会话 + 人工验收闸） | **本插件的直接受益面**：看板卡的执行会话就是普通会话，卡跑到哪一步、有没有收尾，靠的正是这里的标题状态前缀——**标题不可信，看板上的进度就只是一句话** |
+| [`dsh-firstaid`](https://github.com/kira905/dsh-firstaid) | 零依赖急救台：起不来 / 假死 / 要撤销改动 / 数据被删四类现场压成一个入口 | 出事的兜底：本插件（或宿主）一旦**起不来**、界面假死，先跑它生成体检报告，再决定动不动手 |
 
 > 组件之间**没有代码依赖**，也不共享运行时 —— 之所以互指，是因为它们回答的是同一类人的同一批问题
 > （长期在自有机器上跑 agent：装得下、找得到、看得见、查得清）。谁装谁不装，互不影响。

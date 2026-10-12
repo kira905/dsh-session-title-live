@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-title-live",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
@@ -24,6 +24,7 @@
     "examples",
     "cordis.patch.yml.example",
     "README.md",
+    "README.en.md",
     "CHANGELOG.md",
     "LICENSE"
   ],

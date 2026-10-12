@@ -1,5 +1,7 @@
 # dsh-session-title-live
 
+> **English**: [README.en.md](./README.en.md)
+
 一个 **DeepSeek Harness (DSH) 插件**：让会话标题**跟着对话实时更新**。
 
 ## 为什么需要它

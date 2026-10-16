@@ -213,11 +213,11 @@ A top-level shorthand `{ "enabled": false }` is also supported. `enabled:true` =
 
 | Host version | Status |
 |---|---|
-| `0.1.1-rc.2` | **Verified on a real DSH** (long-term use: title refresh, turn prefixes, pin, kill switch all exercised) |
-| The `0.1.5` line (static check against `0.1.5-rc.1` / `0.1.5-rc.2`, 2026-09-21) | ✅ **All 11 host contracts this plugin uses were individually confirmed to be still present**: the events `session/event`, `user/message`, `session/title`, `turn/start`, `turn/end`, `request/header`, `session/disposed`, and the services `llm` (including the `llm/stream` waterfall), `sessions`, `sessionTitle`. **This plugin imports no symbol from the host package** (everything is a string contract, collected in `lib/host-protocol.js` in this repository) |
-| `0.1.5-rc.2` end to end | ⚠️ **Not measured** (the differences from rc.1 were not investigated) |
-| Its own diagnostic event `session/title-llm-request` | A diagnostic event written by this plugin itself; no event of the same name was found in the official 0.1.5 line (it does not affect functionality, it exists only for reconciliation) |
-| `>= 0.2.0` | **Not supported** (not assessed; it breaks if the host changes the title events or the provider contract) |
+| **`0.2.0-rc.2`** | ✅ **Measured end-to-end (2026-10-16)**: installed and exercised for real on an isolated instance (separate data root + port 3090, host `0.2.0-rc.2`) — no `skipping profile bundle`, no `failed to import`, and all three injected services (`sessionTitle` / `llm` / `sessions`) resolved; **functional proof** = after creating a session and sending one message, the title became **`【完成】…`**, and `【完成】` is exactly this plugin's turn-state prefix (its `MARK_RE` contract) |
+| later `0.2.x` | ⚠️ **Not measured; no promise** (the declared upper bound is `<0.3.0`) |
+| the `0.1.1-rc.2` – `0.1.5` lines | ⚠️ **Not end-to-end tested** (the declared baseline of `v0.2.3` and earlier; **this version no longer declares a 0.1.x range**) |
+| Its own diagnostic event `session/title-llm-request` | A diagnostic event written by this plugin itself; no event of the same name was found in the official 0.1.5 / 0.2.0 lines (it does not affect functionality, it exists only for reconciliation) |
+| `>= 0.3.0` | ❌ Not assessed (it breaks if the host changes the title events or the provider contract) |
 
 When upgrading the host, review `lib/host-protocol.js` first (the single place where this plugin's inlined protocol constants live):
 search the new host sources for every name in it — if a name is still there, fine; if not, something must change.
@@ -311,10 +311,8 @@ Sibling components in the same DSH ecosystem — separate repositories, separate
 
 ## 11. License
 
-**Current status: pending a decision (AGPL-3.0 is in place as a full text for the time being).**
+**Decided (2026-10-16): `AGPL-3.0-only plus a commercial license` (dual licensing).**
 
 - This repository's `LICENSE` is the official full text of GNU AGPL-3.0, and the `license` field in `package.json` is likewise `AGPL-3.0-only`;
-- The other candidate is MIT (more permissive, easier for others to embed);
-- **Which license is finally adopted is for the maintainer to decide**; once decided, three places change together: `LICENSE` / this section / `package.json`.
-
-Until that decision is made, please use this documentation and code under the terms of AGPL-3.0.
+- ⚠️ **AGPL-3.0 does not forbid commercial use by itself**: you may use, modify and redistribute it freely (commercial use included), provided that **if you make a modified version available to others over a network, you must offer the corresponding source under the AGPL as well**;
+- "+ a commercial license" = **dual licensing**: either open-source your derivative under the AGPL (**the derivative must stay open**), or obtain a **commercial license**. If you need it in a **closed-source** or **commercial** setting (where AGPL's copyleft obligations do not apply), **please reach out by opening an issue**.

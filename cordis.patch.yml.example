@@ -16,7 +16,7 @@
 # config 段可选：不写 = 用 lib/config.js 的默认值，再叠 <home>/dsh-session-title-live.config.json
 # （用 SESSION_TITLE_LIVE_CONFIG 指到别的路径也行）。这里的键等价于**优先级最高的一层**默认值。
 #
-# 插件的 id / name 请与 package.json 的包名一致（`dsh-session-title-live`）；
+# 插件的 name 必须与 npm 包名一致（`@kira905/dsh-session-title-live`）；
 # 上面示例里的 patch 条目 id 用简写 `session-title-live`——两者都行，只要不与别的条目重复。
 
 - disable:
@@ -24,7 +24,7 @@
 
 - insert:
     - id: session-title-live
-      name: 'dsh-session-title-live'
+      name: '@kira905/dsh-session-title-live'
       # config:
       #   targetWords: 5
       #   targetCjkCharacters: 10

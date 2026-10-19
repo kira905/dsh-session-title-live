@@ -1,5 +1,5 @@
 {
-  "name": "dsh-session-title-live",
+  "name": "@kira905/dsh-session-title-live",
   "version": "0.2.4",
   "private": false,
   "type": "module",
@@ -17,7 +17,8 @@
     "deepseek-harness",
     "plugin",
     "session-title",
-    "cordis"
+    "cordis",
+    "dsh-plugin"
   ],
   "files": [
     "lib",
@@ -29,7 +30,8 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "dsh": ">=0.2.0-rc.2 <0.3.0"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0"
@@ -43,5 +45,16 @@
     "verify": "node scripts/verify-source.mjs .",
     "test": "node scripts/verify-source.mjs . && node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs",
     "test:e2e": "node scripts/test-e2e.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kira905/dsh-session-title-live.git"
+  },
+  "homepage": "https://github.com/kira905/dsh-session-title-live#readme",
+  "bugs": {
+    "url": "https://github.com/kira905/dsh-session-title-live/issues"
   }
 }

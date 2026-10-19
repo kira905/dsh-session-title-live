@@ -74,17 +74,13 @@ Before touching the profile, make a copy of `cordis.patch.yml` (essential) and o
 
 ### 1. Put the package in place
 
-```bash
-git clone <repository-url> dsh-session-title-live
-```
-
-Then install it into your profile (pick one):
+The package is published on npm as **`@kira905/dsh-session-title-live`**. Pick one of three routes:
 
 **Route A (recommended, declarative)** — add an entry to `dependencies` in `profiles/<name>/package.json`, then install:
 
 ```jsonc
 "dependencies": {
-  "dsh-session-title-live": "file:../../path/to/dsh-session-title-live"
+  "@kira905/dsh-session-title-live": "^0.2.4"
 }
 ```
 
@@ -93,13 +89,20 @@ cd <DSH_HOME>/profiles/<name>
 # install with whatever command you normally use to add a plugin to this profile (pnpm / npm both work)
 ```
 
-**Route B (manual, no dependency install)** — simply copy the package directory in as a real directory:
+**Route B (install straight into the profile with npm)**:
 
 ```bash
-cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/dsh-session-title-live
+npm install @kira905/dsh-session-title-live --prefix <DSH_HOME>/profiles/<name>
 ```
 
-> The only difference between the two is who is responsible for putting the files under `node_modules`; the plugin behaves identically.
+**Route C (clone from git — offline / editing the source)** — simply copy the package directory in as a real directory:
+
+```bash
+git clone <repository-url> dsh-session-title-live
+cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/@kira905/dsh-session-title-live
+```
+
+> The only difference between the three is who is responsible for putting the files under `node_modules`; the plugin behaves identically.
 
 ### 2. Register the plugin and disable the official first-turn provider (essential, do not skip)
 
@@ -112,7 +115,7 @@ Append the block from [`cordis.patch.yml.example`](./cordis.patch.yml.example) t
 
 - insert:
     - id: session-title-live
-      name: 'dsh-session-title-live'
+      name: '@kira905/dsh-session-title-live'
 ```
 
 ⚠️ The `id` of an `insert` entry must not duplicate an existing entry (a duplicate crashes with `duplicate loader entry id`). Check before adding:

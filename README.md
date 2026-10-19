@@ -73,17 +73,13 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 
 ### 1. 把包放进去
 
-```bash
-git clone <仓库地址> dsh-session-title-live
-```
-
-然后装进你的 profile（二选一）：
+包已发布到 npm：**`@kira905/dsh-session-title-live`**。装进 profile 三选一：
 
 **方式 A（推荐，声明式）** —— 在 `profiles/<name>/package.json` 的 `dependencies` 里加一条，再安装：
 
 ```jsonc
 "dependencies": {
-  "dsh-session-title-live": "file:../../path/to/dsh-session-title-live"
+  "@kira905/dsh-session-title-live": "^0.2.4"
 }
 ```
 
@@ -92,13 +88,20 @@ cd <DSH_HOME>/profiles/<name>
 # 用你平时给这个 profile 装插件的那条命令安装（pnpm / npm 均可）
 ```
 
-**方式 B（手动，不装依赖）** —— 直接把包目录复制成实体目录：
+**方式 B（npm 直接装进 profile）**：
 
 ```bash
-cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/dsh-session-title-live
+npm install @kira905/dsh-session-title-live --prefix <DSH_HOME>/profiles/<name>
 ```
 
-> 两者差别只在「谁负责把文件放到 `node_modules` 下」，插件行为一致。
+**方式 C（git 克隆，离线 / 要改源码时）** —— 直接把包目录复制成实体目录：
+
+```bash
+git clone <仓库地址> dsh-session-title-live
+cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/@kira905/dsh-session-title-live
+```
+
+> 三种方式差别只在「谁负责把文件放到 `node_modules` 下」，插件行为一致。
 
 ### 2. 注册插件 + 关掉官方那个首轮 provider（关键，别跳过）
 
@@ -111,7 +114,7 @@ cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/dsh-session
 
 - insert:
     - id: session-title-live
-      name: 'dsh-session-title-live'
+      name: '@kira905/dsh-session-title-live'
 ```
 
 ⚠️ `insert` 的 `id` 不能与已有条目重复（重复会崩 `duplicate loader entry id`）。加之前先查：

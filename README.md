@@ -58,7 +58,7 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 
 ## 二、前置条件
 
-- DSH 主包 `>= 0.1.1-rc.2 < 0.2.0`（兼容性细节见第六节）
+- DSH 主包 `>= 0.2.0-rc.2 < 0.3.0`（兼容性细节见第六节）
 - Node.js `>= 18`
 - 一个能改 `profiles/<name>/` 的 DSH 安装（默认 profile 名为 `web`）
 
@@ -73,13 +73,23 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 
 ### 1. 把包放进去
 
-包已发布到 npm：**`@kira905/dsh-session-title-live`**。装进 profile 三选一：
+包已发布到 npm：**`@kira905/dsh-session-title-live`**。
+
+**方式 0（推荐，0.2.5 起）—— 走 DSH 插件管理器，bundle 层自动挂载**：
+
+```bash
+dsh plugin --profile web add @kira905/dsh-session-title-live
+```
+
+本包自带 `cordis.patch.yml`（`package.json#dsh.bundle`），装它 = profile 拿到一个层，**不用手工改 profile 的 `cordis.patch.yml`**（也就跳过后面的第 2 步）。
+
+下面的方式 A/B/C 是「手工装」的三个变体，装完还要按第 2 步手工注册。
 
 **方式 A（推荐，声明式）** —— 在 `profiles/<name>/package.json` 的 `dependencies` 里加一条，再安装：
 
 ```jsonc
 "dependencies": {
-  "@kira905/dsh-session-title-live": "^0.2.4"
+  "@kira905/dsh-session-title-live": "^0.2.5"
 }
 ```
 
@@ -103,29 +113,42 @@ cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/@kira905/ds
 
 > 三种方式差别只在「谁负责把文件放到 `node_modules` 下」，插件行为一致。
 
-### 2. 注册插件 + 关掉官方那个首轮 provider（关键，别跳过）
+### 2. 注册插件（只有「手工装法」要这一步）
 
-把 [`cordis.patch.yml.example`](./cordis.patch.yml.example) 那段追加到
-`profiles/<name>/cordis.patch.yml` 末尾。它做两件事：
+**走方式 0 就跳过本节** —— bundle 层已经把插件插好了。下面只给手工装（方式 A/B/C）用。
+
+把 [`cordis.patch.yml.example`](./cordis.patch.yml.example) 的 `insert` 段追加到
+`profiles/<name>/cordis.patch.yml` 末尾：
 
 ```yaml
-- disable:
-    - id: session-title-llm        # 官方「只在首轮生成标题」的 provider：先关掉，避免两条抢着写
-
 - insert:
     - id: session-title-live
       name: '@kira905/dsh-session-title-live'
 ```
 
-⚠️ `insert` 的 `id` 不能与已有条目重复（重复会崩 `duplicate loader entry id`）。加之前先查：
+**必须**同时关掉官方「只在首轮生成标题」的 provider（`session-title-llm`）：
+两条 provider 注册的是同一个 provider id，同时挂载时后一个会报
+`session-title provider "dsh-session-title-live" is already registered`、整条 entry 不激活
+（隔离实例实测）。所以手工装时也要加：
+
+```yaml
+- id: session-title-llm
+  disabled: true
+```
+
+> 写法注意：宿主认的是**针对某一条的覆盖** `id` + `disabled: true`；`disable:` 列表**不是**
+> loader patch 的语法，会被静默跳过（只在 `--dump-config` 里留一行
+> `patch: id is required for non-insert patches`）。
+
+⚠️ `insert` 的 `id` 不能与已有条目重复（重复会崩 `duplicate loader entry id`）；上面两段都加时，
+别把 `insert` 加两遍。加之前先查：
 
 ```bash
 grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 ```
 
-> 本插件**没有** client 半（`package.json` 里没有 `dsh.client` 字段），因此理论上也可以放进
-> `dsh.profile.bundles`；但**推荐仍然走 patch insert** —— 上面那两条要一起改才生效，
-> 写在同一个 patch 里最好维护。若你偏好 bundles，请自行验证（见第七节「已知限制」）。
+> 0.2.5 起本包声明了 `dsh.bundle`（仓库根 `cordis.patch.yml`），既能作为 profile 层安装（方式 0，推荐），
+> 也能照上面手工 insert；**两种别混用** —— 同一条 id 注册两遍会崩。
 
 ### 3. 重启并验证
 
@@ -238,7 +261,10 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
    回到"provider 来源"没有直接入口 —— 换一个会话最省事。
 5. **自建调度默认开启**（`selfSchedule: true`）。它是为绕开主包调度的时机限制而存在的；
    关掉它多数情况下就没有实时刷新了，只在排障对照时才关。
-6. **`bundles` 加载方式未实测**（本插件无 client 半，理论可行，但实测路径是 `cordis.patch.yml` 的 insert）。
+6. **`bundles` 加载方式已实测（0.2.5 起）**：本插件现在自带 `cordis.patch.yml`（`dsh.bundle`），在隔离实例
+   （独立 `DSH_HOME` + 端口 3090 + 主包 `0.2.0-rc.2`）上用 `dsh plugin --profile bundlecheck add <tgz>` 装本地 tgz，
+   启动日志只有 `dsh web: http://…` 一行、无 `declares no dsh.bundle`、无 entry 未激活；
+   `--dump-config` 里能看到本插件行，且官方 `session-title-llm` 标着 `patched by @kira905/dsh-session-title-live`。
 7. **群聊 / 多用户场景未评估**：本插件按"人类消息 = `source.kind==='user'`"取文本，
    若你的部署里有多来源消息，选材口径需自行核对。
 8. **`0.1.5` 线只做过静态核对、未端到端实测**（见第六节）。
@@ -254,7 +280,8 @@ lib/
   host-protocol.js   主包协议常量（事件名 / 服务名）—— 升级主包时唯一要核对的文件
 examples/
   session-title-live.config.example.json   配置示例（逐项都是默认值）
-cordis.patch.yml.example                   注册用的 patch 片段（含 disable 官方 provider）
+cordis.patch.yml                           bundle patch（`dsh.bundle` 指向它；方式 0 自动挂载，含 disable 官方 provider）
+cordis.patch.yml.example                   手工注册 / 全部配置键参考（旧版装法用）
 scripts/
   verify-source.mjs  静态验证：语法 + 配置层行为 + 脱敏扫描（支持 BUILD_* 注入本机标识）
   test-e2e.mjs       端到端：干净临时路径 + 非默认配置 + 假宿主全流程

@@ -1,0 +1,35 @@
+# Bundle patch for @kira905/dsh-session-title-live.
+#
+# This file is what `dsh.bundle.patch` in package.json points at. When the
+# package is installed as a profile layer (`dsh plugin --profile <name> add
+# @kira905/dsh-session-title-live`, or listed in `dsh.profile.bundles`), DSH
+# boots this layer and inserts the row below automatically — no manual edit of
+# the profile's own cordis.patch.yml is needed.
+#
+# The row id must not collide with any other loader entry id; a duplicate
+# aborts startup with "duplicate loader entry id".
+#
+# The `config` block is optional: omit it and lib/config.js defaults plus
+# <DSH_HOME>/dsh-session-title-live.config.json apply as usual. A `config`
+# written here is the highest-priority layer of defaults.
+#
+# Note: this provider registers on the core `session-title` service without
+# replacing it. The official first-turn provider (`session-title-llm`) registers
+# under the SAME provider id, so leaving both mounted makes the later one fail
+# with "session-title provider ... is already registered" — measured on an
+# isolated 0.2.0-rc.2 instance. The disable below is therefore part of this
+# bundle's contract, not an optional nicety: it takes the official first-turn
+# row out of the way and this plugin's "all-prompts" row takes over.
+# If you want the official provider back, override this disable in your own
+# profile patch layer (it applies after bundle layers).
+#
+# ⚠️ The disable is written as an id-targeted override (`id` + `disabled: true`)
+# because that is the dialect this host reads; a `disable:` list is NOT part of
+# the loader patch format and is silently skipped with
+# "patch: id is required for non-insert patches".
+- id: session-title-llm
+  disabled: true
+
+- insert:
+    - id: dsh-session-title-live
+      name: '@kira905/dsh-session-title-live'

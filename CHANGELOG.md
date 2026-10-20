@@ -3,6 +3,36 @@
 本文件只记**使用者能观察到**的变化（新增 / 修复 / 破坏性变更），倒序（最新在最上）。
 版本号怎么定、发布前要跑什么，见 [`docs/RELEASING.md`](./docs/RELEASING.md)。
 
+## [0.2.5] - 2026-10-20
+
+### Added
+
+- **本包现在声明 `dsh.bundle`，是「可安装」的 DSH 插件**：`package.json#dsh.bundle.patch = ./cordis.patch.yml`，
+  仓库根新增 `cordis.patch.yml`（`insert`：`id: dsh-session-title-live` / `name: '@kira905/dsh-session-title-live'`）。
+  此前本包**完全没有 `dsh` 段**（也没有 client 半），只能靠手工改 profile 的 `cordis.patch.yml` 挂载。
+  现在 `dsh plugin --profile <name> add @kira905/dsh-session-title-live` 会把它作为 **profile 层**自动挂载。
+  影响面 / 迁移动作：**已经手工 insert 过的现有安装别跟着再走 bundle 层**（同一条 id 撞
+  `duplicate loader entry id`）；要么继续手工，要么先删手工条目再改走 bundle。
+- `files` 补 `cordis.patch.yml`（保证 npm 包里带上它）。
+
+### Changed
+
+- `cordis.patch.yml.example` 改写为「**旧版 / 手动注册参考**」：删掉「本包没有 client 半、只能走手工 insert」
+  这类**已被本版推翻的前提**，改为「正常走 bundle 层；手工 insert 只用于老宿主 / 手工拷贝安装」，
+  其余 `config` 键全部保留。**选择改写而非删除**：它是唯一的「全部配置键」清单。
+- 🔴 **bundle 层自带 `disable: session-title-llm`**：官方首轮 provider 与本插件注册**同一个 provider id**，
+  两者同时挂载时后一个会报 `session-title provider "dsh-session-title-live" is already registered`
+  且整条 entry 不激活（隔离实例 0.2.0-rc.2 实测，修前启动日志有 `1 entry did not activate`）。
+  所以「关掉官方 provider」不是可选项，而是装本插件的必要动作；手工装时同样要加那一段 `disable`。
+  想恢复官方 provider，在自己的 profile patch 层里覆盖即可（profile 层在 bundle 层之后生效）。
+- 🔴 **顺带纠正一处语法错**：旧示例里的 `- disable:` + `- id:` 列表**不是** loader patch 的语法
+  （宿主只认「`id` + `disabled: true`」这种针对单条的覆盖），实测被静默跳过，只在
+  `--dump-config` 里留一行 `patch: id is required for non-insert patches` —— 也就是说**照着旧示例抄，
+  官方 provider 其实从来没被关掉过**。本版 cordis patch、示例、README 全部改成正确写法。
+- README（中英）安装段同步：手工装法保留 `disable` 段并说明原因。
+- README（中英）第七节第 6 条「`bundles` 加载方式未实测」按本轮隔离实测结果更新。
+- 宿主兼容区间、运行时行为**均无改动**。
+
 ## [0.2.4] - 2026-10-16
 
 ### Changed

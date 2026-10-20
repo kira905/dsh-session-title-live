@@ -1,14 +1,23 @@
-# dsh-session-title-live — cordis patch 片段（示例 / 模板）
+# dsh-session-title-live — 手工 patch 片段（旧版 / 手动注册参考）
 #
-# 用法：把下面这一段追加到你所用的 profile 的 cordis.patch.yml 末尾
-#       （profile 目录：<DSH_HOME>/profiles/<name>/cordis.patch.yml）。
+# 从 0.2.5 起，本包在 package.json 里声明了 `dsh.bundle`，**正常情况下不需要本文件**：
+#   用 `dsh plugin --profile <name> add @kira905/dsh-session-title-live`
+#   （或把它列进 profile package.json 的 `dsh.profile.bundles`），
+#   DSH 会把仓库根的 `cordis.patch.yml` 当作 bundle patch 自动插进来。
 #
-# 两件事一起做：
-#   ① **关掉官方那个只在首轮生成标题的 provider**（`session-title-llm`），
-#      否则两条 provider 会抢着写标题（本插件与官方 provider 注册的 automatic 档不同，
-#      同时开着时官方那条仍会在首轮生成，看到的表现是"首轮标题被官方覆盖"）；
-#   ② insert 本插件（`automatic: "all-prompts"`：每次人类消息后重生成标题）。
-#      核心的 `session-title` 服务保持不动（本插件注册进它，不替换它）。
+# 本文件仍然有用，用于两种场景：
+#   ① **老宿主 / 老装法**：把包装进 profile 但没走 bundle 层（例如手工拷进
+#      `node_modules`），此时需要手工把下面那一段 insert 追加到 profile 的
+#      `cordis.patch.yml` 末尾（profile 目录：<DSH_HOME>/profiles/<name>/cordis.patch.yml）；
+#   ② **想改手工注册时的行为**：bundle 层已经自带了 `disable: session-title-llm`
+#      （官方的首轮 provider 与本插件注册同一个 provider id，两者同时挂载时后一个会报
+#      "already registered"）；如果你想改回去或恢复官方 provider，照下面写成你自己 profile
+#      的 patch 层即可（profile 层在 bundle 层之后生效）。本插件注册进核心
+#      `session-title` 服务，不替换它。
+#
+# ⚠️ 不要和 bundle 层**同时**注册：两种装法都插同一条 id，会崩
+#    "duplicate loader entry id"。走 bundle 层时，profile 的 cordis.patch.yml 里
+#    不要再追加 insert 段。
 #
 # ⚠️ insert 前先确认 id 不与已有条目重复（重复会崩 "duplicate loader entry id"）：
 #    grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
@@ -19,8 +28,12 @@
 # 插件的 name 必须与 npm 包名一致（`@kira905/dsh-session-title-live`）；
 # 上面示例里的 patch 条目 id 用简写 `session-title-live`——两者都行，只要不与别的条目重复。
 
-- disable:
-    - id: session-title-llm
+# 手工装时的 disable（与 bundle 层同款；走方式 0 时不需要抄这里）
+# ⚠️ 宿主认的写法是「id + disabled: true」这种**针对某一条的覆盖**；
+#    `disable:` 列表不是 loader patch 的语法，会被静默跳过并告警
+#    "patch: id is required for non-insert patches"。
+- id: session-title-llm
+  disabled: true
 
 - insert:
     - id: session-title-live

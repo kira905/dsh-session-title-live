@@ -1,6 +1,6 @@
 {
   "name": "@kira905/dsh-session-title-live",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
@@ -23,12 +23,18 @@
   "files": [
     "lib",
     "examples",
+    "cordis.patch.yml",
     "cordis.patch.yml.example",
     "README.md",
     "README.en.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "engines": {
     "node": ">=18",
     "dsh": ">=0.2.0-rc.2 <0.3.0"

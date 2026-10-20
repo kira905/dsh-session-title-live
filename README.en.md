@@ -60,7 +60,7 @@ The design basis follows the fixed four questions agreed with that documentation
 
 ## 2. Prerequisites
 
-- DSH host package `>= 0.1.1-rc.2 < 0.2.0` (compatibility details in section 6)
+- DSH host package `>= 0.2.0-rc.2 < 0.3.0` (compatibility details in section 6)
 - Node.js `>= 18`
 - A DSH installation in which you can modify `profiles/<name>/` (the default profile name is `web`)
 
@@ -74,13 +74,23 @@ Before touching the profile, make a copy of `cordis.patch.yml` (essential) and o
 
 ### 1. Put the package in place
 
-The package is published on npm as **`@kira905/dsh-session-title-live`**. Pick one of three routes:
+The package is published on npm as **`@kira905/dsh-session-title-live`**.
+
+**Route 0 (recommended, since 0.2.5) — install it through the DSH plugin manager; the bundle layer mounts it for you**:
+
+```bash
+dsh plugin --profile web add @kira905/dsh-session-title-live
+```
+
+The package ships its own `cordis.patch.yml` (`package.json#dsh.bundle`), so installing it hands the profile a layer and **you do not edit the profile's `cordis.patch.yml` at all** (skip step 2 below).
+
+Routes A/B/C are the three manual variants; after those you still need step 2.
 
 **Route A (recommended, declarative)** — add an entry to `dependencies` in `profiles/<name>/package.json`, then install:
 
 ```jsonc
 "dependencies": {
-  "@kira905/dsh-session-title-live": "^0.2.4"
+  "@kira905/dsh-session-title-live": "^0.2.5"
 }
 ```
 
@@ -104,29 +114,40 @@ cp -r dsh-session-title-live <DSH_HOME>/profiles/<name>/node_modules/@kira905/ds
 
 > The only difference between the three is who is responsible for putting the files under `node_modules`; the plugin behaves identically.
 
-### 2. Register the plugin and disable the official first-turn provider (essential, do not skip)
+### 2. Register the plugin (manual routes only)
 
-Append the block from [`cordis.patch.yml.example`](./cordis.patch.yml.example) to the end of
-`profiles/<name>/cordis.patch.yml`. It does two things:
+**Skip this step when you used Route 0** — the bundle layer already inserted the plugin. What follows is for the manual routes (A/B/C) only.
+
+Append the `insert` block from [`cordis.patch.yml.example`](./cordis.patch.yml.example) to the end of
+`profiles/<name>/cordis.patch.yml`:
 
 ```yaml
-- disable:
-    - id: session-title-llm        # the official "title only on the first turn" provider: disable it first so the two do not race
-
 - insert:
     - id: session-title-live
       name: '@kira905/dsh-session-title-live'
 ```
 
-⚠️ The `id` of an `insert` entry must not duplicate an existing entry (a duplicate crashes with `duplicate loader entry id`). Check before adding:
+You **must** also disable the official first-turn provider (`session-title-llm`): both register
+the same provider id, so leaving both mounted makes the later one fail with
+`session-title provider "dsh-session-title-live" is already registered` and the entry does not
+activate (measured on an isolated instance). Manual routes therefore need:
+
+```yaml
+- id: session-title-llm
+  disabled: true
+```
+
+> Syntax note: the host reads an **id-targeted override** (`id` + `disabled: true`); a `disable:`
+> list is **not** part of the loader patch format and is silently skipped (it only shows up as
+> `patch: id is required for non-insert patches` in `--dump-config`).
+
+⚠️ The `id` of an `insert` entry must not duplicate an existing entry (a duplicate crashes with `duplicate loader entry id`); when you add both blocks, do not add `insert` twice. Check before adding:
 
 ```bash
 grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 ```
 
-> This plugin has **no** browser half (there is no `dsh.client` field in `package.json`), so in theory it could also go into
-> `dsh.profile.bundles`; but **the patch insert route is still recommended** — the two entries above must change together to take effect,
-> and keeping them in one patch is easier to maintain. If you prefer bundles, verify it yourself (see section 7, "Known limitations").
+> Since 0.2.5 this package declares `dsh.bundle` (root `cordis.patch.yml`), so it can be installed as a profile layer (Route 0, recommended) **or** registered by hand as above — **do not mix the two**, because registering the same id twice crashes startup.
 
 ### 3. Restart and verify
 
@@ -239,7 +260,7 @@ search the new host sources for every name in it — if a name is still there, f
    for putting a title back to "provider source" — switching to another session is the simplest way.
 5. **Self-managed scheduling is on by default** (`selfSchedule: true`). It exists to work around the timing limits of the host's scheduler;
    switching it off means no live refresh in most cases, so switch it off only for troubleshooting comparisons.
-6. **The `bundles` loading route is not measured** (this plugin has no browser half, so it is theoretically possible, but the measured path is the `cordis.patch.yml` insert).
+6. **The `bundles` loading route is now measured (since 0.2.5)**: the package ships its own `cordis.patch.yml` (`dsh.bundle`); on an isolated instance (separate `DSH_HOME`, port 3090, host `0.2.0-rc.2`) `dsh plugin --profile bundlecheck add <tgz>` installed the local tarball and the startup log held only the `dsh web: http://…` line — no `declares no dsh.bundle`, no inactive entry; `--dump-config` lists this plugin's row and marks the official `session-title-llm` as `patched by @kira905/dsh-session-title-live`.
 7. **Group chat / multi-user scenarios are not assessed**: this plugin takes its text on the basis that "a human message = `source.kind==='user'`";
    if your deployment has messages from several sources, the selection rule needs to be checked by you.
 8. **The `0.1.5` line has only had a static check, not an end-to-end measurement** (see section 6).
@@ -255,7 +276,8 @@ lib/
   host-protocol.js   host protocol constants (event names / service names) — the only file to review when upgrading the host
 examples/
   session-title-live.config.example.json   configuration example (every entry is its default value)
-cordis.patch.yml.example                   the patch fragment used for registration (including the disable of the official provider)
+cordis.patch.yml                           the bundle patch `dsh.bundle` points at (Route 0 mounts it; includes the official-provider disable)
+cordis.patch.yml.example                   the manual registration fragment, with every config key spelled out
 scripts/
   verify-source.mjs  static verification: syntax + configuration-layer behaviour + sanitization scan (BUILD_* can inject local identifiers)
   test-e2e.mjs       end to end: clean temporary paths + non-default configuration + a fake host through the whole flow

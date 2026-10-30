@@ -1,6 +1,6 @@
 {
   "name": "@kira905/dsh-session-title-live",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": false,
   "type": "module",
   "main": "lib/index.js",

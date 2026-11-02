@@ -1,5 +1,22 @@
 # dsh-session-title-live
 
+> ### What this is
+> **A small plugin**: keep session titles in step with their state (running / done), without disturbing titles you pinned.
+>
+> ### What it solves
+> With a dozen sessions in the sidebar, the titles alone cannot tell you which are working and which finished hours ago. This plugin writes the state prefix straight into the title, and treats "automatic title updates" and "the user pinned this" as two separate things — a pinned title is never touched.
+>
+> ### Run it in one command
+> ```powershell
+> dsh plugin --profile web add @kira905/dsh-session-title-live
+> ```
+> Titles then carry their state prefix automatically; the rules are configurable in the plugin settings.
+>
+> ### What it looks like
+> Sidebar titles read like "[running] …" / "[done] …". ⚠️ **No screenshot in this repo.**
+
+---
+
 A **DeepSeek Harness (DSH) plugin** that makes session titles **update live as the conversation goes**.
 
 > **Status**: published (Gitee + GitHub)

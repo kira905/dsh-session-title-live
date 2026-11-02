@@ -1,5 +1,22 @@
 # dsh-session-title-live
 
+> ### 这是什么
+> **一个小插件**：让会话标题实时反映状态（运行中 / 已完成），并且不会把已 pin 的标题搞乱。
+>
+> ### 它解决什么
+> 侧边栏里十几个会话，光看标题分不出"正在干活"和"早就结束了"。这个插件把状态前缀直接写进标题，并且把"自动改标题"和"用户手工 pin"这两件事分开处理 —— 你 pin 住的标题它不碰。
+>
+> ### 一条命令跑起来
+> ```powershell
+> dsh plugin --profile web add @kira905/dsh-session-title-live
+> ```
+> 装完标题就会自己带状态前缀；规则可通过插件设置调整。
+>
+> ### 它长什么样
+> 侧边栏标题变成「【运行】…」/「【完成】…」这种形态。⚠️ 本仓**暂无截图**。
+
+---
+
 > **本仓装完即用**：`dsh plugin --profile <profile> add @kira905/dsh-session-title-live` 一条命令，`dsh.bundle` 会让它自动挂进 profile 的组合列表，**不需要再手工写 `cordis.patch.yml`**。
 
 ## 装完自检（三条只读验法）

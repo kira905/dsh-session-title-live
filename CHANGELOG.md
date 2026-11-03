@@ -3,6 +3,28 @@
 本文件只记**使用者能观察到**的变化（新增 / 修复 / 破坏性变更），倒序（最新在最上）。
 版本号怎么定、发布前要跑什么，见 [`docs/RELEASING.md`](./docs/RELEASING.md)。
 
+## [0.2.7] - 2026-11-03
+
+### Fixed
+
+- 🔴 **在 DSH 0.2.1 及以上版本上会让会话直接报错（严重）**：消息的 `source` 曾被写成
+  `{ kind: 'plugin', plugin: 'dsh-session-title-live' }` —— 这是会话日志 **v4 已退役**的形态。
+  v4 的准入校验**硬拒** `source.kind === 'plugin'`，而本插件写的 `session/title-llm-request`
+  事件的 `messages` 恰好在那套校验的扫描列表里。后果是双重的：
+  ① 事件落盘被拒 ⇒ 整个回合直接 error（使用者看到的是「执行 1–5 秒就 failed」）；
+  ② 坏行留在日志里 ⇒ 界面「查看会话」读盘时报同一句
+  `format v4 message requires a producer-owned source kind`。
+  本插件是全局钩子（每轮人类消息后都会触发）⇒ **所有会话**都会中招，不是个别场景。
+- 修复：`source` 改用主包白名单内的官方名 `{ kind: 'dsh-session-title-llm' }`
+  （即 `RELEASED_SAME_NAME_PRODUCERS` 里的名字，v3→v4 迁移器同样原样保留）。
+  新增导出常量 `OFFICIAL_TITLE_REQ_PLUGIN` 收口该字面量，避免再次散落。
+
+### 升级建议
+
+- **0.2.4 / 0.2.5 / 0.2.6 在 DSH 0.2.1 及以上都不要用**，请直接升到 0.2.7。
+- 升级后**已经崩掉的旧会话不会自动恢复**（坏行已写进日志）：先整份备份 `sessions` 目录，
+  再处置那批会话；新会话不受影响。
+
 ## [0.2.5] - 2026-10-20
 
 ### Added

@@ -377,6 +377,9 @@ await test('任务卡会话：创建阶段写下的卡片标题（user source、
   s.append('session/title', { title: '升级 L2 金丝雀实例（复用测试环境机制 · 含首检三问）', messageSeqs: [], source: { kind: 'user' } });
   await delay();
   eq(s.marks.length, 1, '还没开回合，不该打标');
+  // 卡片标题那条没有依据 seq（宿主改名写的 messageSeqs: []）⇒ 打标时必须能从事件流里
+  // 找到一条人类消息兜底，否则按"严格 schema 下不写非法事件"的口径会跳过（见 applyMark 段）。
+  s.append('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: '开始吧' }] });
   s.append('turn/start', { turn: 1 });
   await delay();
   const t1 = lastTitle(s);
@@ -391,6 +394,7 @@ await test('任务卡会话：卡标题固定——provider 的自动摘要不�
   const h = makeHarness();
   const s = h.makeSession('card-2');
   s.append('session/title', { title: '升级 L2 金丝雀实例', messageSeqs: [], source: { kind: 'user' } });
+  s.append('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: '继续' }] });
   s.append('turn/start', { turn: 1 });
   await delay();
   eq(titleMarkState(lastTitle(s)), 'running');
@@ -406,6 +410,7 @@ await test('任务卡会话：回合开始之后的人工改名仍然 pin（不�
   const h = makeHarness();
   const s = h.makeSession('card-3');
   s.append('session/title', { title: '卡片标题', messageSeqs: [], source: { kind: 'user' } });
+  s.append('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: '继续' }] });
   s.append('turn/start', { turn: 1 });
   await delay();
   eq(titleMarkState(lastTitle(s)), 'running');

@@ -42,7 +42,27 @@
       "待命": "idle",
       "已中断": "interrupted"
     },
+    "_comment_relayAxis": [
+      "接力轴：交接 / 接力脚本写在标题上的第二层前缀（【续】/【已交接】）。",
+      "本插件**只保留、从不自己写**；词表里的词会被认成接力轴，基名自带的其它【…】不受影响。"
+    ],
+    "relayAxis": [
+      "续",
+      "已交接"
+    ],
     "baseFallback": "会话"
+  },
+  "mainline": {
+    "_comment": [
+      "主线名直写（可选）：宿主侧若有「会话 → 主线」账本，会话标题直接写主线名（不猜、不调模型）。",
+      "账本形状：<ledgerDir>/_lines.json = {\"lines\":[{\"lineId\":\"l-1\",\"line\":\"主线名\"}]}，",
+      "          <ledgerDir>/_sids/<lineId>.jsonl 每行 {v,ts,sid,how}（append-only）。",
+      "账本不存在 / 损坏 / 同一会话命中两条不同名主线 = 回落自动生成（fail-open）。",
+      "本插件**只读**账本，不写、不猜、不拿标题倒推。"
+    ],
+    "enabled": true,
+    "ledgerDir": "mainline-ledger",
+    "cacheMs": 5000
   },
   "killSwitch": {
     "_comment": [

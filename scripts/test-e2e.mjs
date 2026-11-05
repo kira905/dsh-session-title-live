@@ -160,6 +160,9 @@ console.log('\n[1] 配置外置生效');
 
   const s = h.makeSession('cfg-1');
   s.append('session/title', { title: 'base', messageSeqs: [], source: { kind: 'provider', provider: 'official' } });
+  // 打标写回时必须带依据 seq（主包不变量：provider 标题不能引用空 seqs）；
+  //   当前标题是外部写的 `messageSeqs: []`，所以这里造一条人类消息当兜底依据。
+  s.append('user/message', { content: [{ type: 'text', text: '第一句' }], source: { kind: 'user' } });
   s.append('turn/start', { turn: 1 });
   await settle();
   eq(s.titles.at(-1), '[RUN]base', '配置的英文前缀生效（不是内置的【运行】）');
@@ -177,6 +180,7 @@ console.log('\n[2] 预置标题固定');
   mod.apply(h.ctx, {});
   const s = h.makeSession('pre-1');
   s.append('session/title', { title: '预置标题', messageSeqs: [], source: { kind: 'user' } });   // 早于第一个 turn/start
+  s.append('user/message', { content: [{ type: 'text', text: '开始吧' }], source: { kind: 'user' } });
   s.append('turn/start', { turn: 1 });
   await settle();
   eq(s.titles.at(-1), '[RUN]预置标题', '预置标题只换前缀');
@@ -194,6 +198,7 @@ console.log('\n[3] 活开关');
   mod.apply(h.ctx, {});
   const s = h.makeSession('sw-1');
   s.append('session/title', { title: 'x', messageSeqs: [], source: { kind: 'provider', provider: 'official' } });
+  s.append('user/message', { content: [{ type: 'text', text: '第一句' }], source: { kind: 'user' } });
 
   fs.writeFileSync(SWITCH, JSON.stringify({ modules: { 'session-title-live': { enabled: false, why: 'e2e 拨闸' } } }), 'utf8');
   const before = s.events.length;
@@ -236,7 +241,7 @@ console.log('\n[4] 自调度生成全流程');
 
   const genreq = s.genreqs.at(-1);
   ok(genreq !== undefined, '写了一条标题生成请求（GENREQ）');
-  eq(genreq?.data?.scheduler, 'self', 'GENREQ 带来源标记 scheduler=self（去重对账用）');
+  eq(genreq?.data?.scheduler, undefined, 'GENREQ **不带** scheduler 自定义成员（主包严格 schema，归属走内存账本）');
   eq(genreq?.data?.titleProvider, 'dsh-session-title-live', 'GENREQ 记了标题 provider 名');
   const generated = [...s.events].reverse().find((e) => e.type === 'session/title' && e.data.source?.kind === 'provider' && e.data.source.provider === 'dsh-session-title-live');
   ok(generated !== undefined, '写回了一条 provider 来源的新标题', generated?.data?.title ?? '(无)');

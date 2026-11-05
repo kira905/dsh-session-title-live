@@ -1,6 +1,6 @@
 {
   "name": "@kira905/dsh-session-title-live",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
@@ -49,7 +49,7 @@
   },
   "scripts": {
     "verify": "node scripts/verify-source.mjs .",
-    "test": "node scripts/verify-source.mjs . && node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs",
+    "test": "node scripts/verify-source.mjs . && node _test/test-mainline-title.mjs && node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs",
     "test:e2e": "node scripts/test-e2e.mjs"
   },
   "publishConfig": {

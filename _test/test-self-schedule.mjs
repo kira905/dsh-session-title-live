@@ -15,6 +15,9 @@
 //
 // 运行：node _test/test-self-schedule.mjs
 
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   apply, createSelfScheduler, humanTextOf,
   // 2026-09-17 新增：主题锚 + 最小信息门槛
@@ -234,6 +237,20 @@ await test('没有人类消息时 onMainRequest 不生成', () => {
   const { sched, session } = makeScheduler();
   eq(sched.onMainRequest(session), undefined);
   eq(sched.stats().scheduled, 0);
+});
+
+await test('收口②读侧：自己写的 GENREQ 走内存账本（写入侧不再写 scheduler 成员）', () => {
+  const { sched, session } = makeScheduler();
+  const ev = { type: 'session/title-llm-request', seq: 11, data: { messageSeqs: [3] } };
+  eq(ev.data.scheduler, undefined, '新写的 GENREQ 不带 scheduler 自定义成员（严格 schema）');
+  eq(sched.isOwnSelfRequest(session, ev), false, '没记账前不算自己写的');
+  sched.noteSelfRequest(session, 11);
+  eq(sched.isOwnSelfRequest(session, ev), true, '记账后算自己写的');
+  eq(sched.stats().selfGenreqs, 1);
+  eq(sched.isOwnSelfRequest(session, { type: 'session/title-llm-request', seq: 12, data: {} }), false, '别的 seq 不算');
+  eq(sched.isOwnSelfRequest(session, { seq: 13, data: { scheduler: 'self' } }), true, '历史事件（带 scheduler 字段）仍认自己写的');
+  sched.forget(session);
+  eq(sched.isOwnSelfRequest(session, ev), false, 'forget 后账本清空');
 });
 
 await test('有未处理人类消息 → 排一次生成，且 throughSeq = 最新人类 seq', async () => {
@@ -515,7 +532,9 @@ await test('自调度先认领 → 主包通路被拦下（仍只有 1 条 GENRE
   h.mainRequest(s);                        // 自调度出手
   await settle(6);
   eq(h.genreqs(s).length, 1, '自调度应恰好发 1 条');
-  eq(h.genreqs(s)[0].data.scheduler, 'self');
+  // 写入侧不再写自定义成员 `scheduler`（主包严格 schema）⇒ 归属改由自调度内存账本承载，
+  //   对账行为由 [2] 的 isOwnSelfRequest 单测守（这里只断言成员确实不再出现）。
+  eq(h.genreqs(s)[0].data.scheduler, undefined, 'GENREQ 不得带 scheduler 自定义成员（严格 schema）');
 
   let blocked = null;
   try { await h.mainPathGenerate(s, [ev.seq]); } catch (error) { blocked = error; }
@@ -532,13 +551,13 @@ await test('主包通路已发出 GENREQ（标题未回）→ 自调度不重复
   h.stepStart(s, 1);
   h.header(s, 'deepseek-official', 'deepseek-flash');
   const ev = h.human(s, '第一轮');
-  // 模拟主包通路已发起、标题尚未写回（正是两次生成并发的窗口）
-  s.append('session/title-llm-request', { titleProvider: 'dsh-session-title-live', scheduler: 'service', messageSeqs: [ev.seq] });
+  // 模拟主包通路已发起、标题尚未写回（正是两次生成并发的窗口）；新版本不再写 scheduler 成员
+  s.append('session/title-llm-request', { titleProvider: 'dsh-session-title-live', messageSeqs: [ev.seq] });
   await settle();
   h.mainRequest(s);
   await settle(6);
   eq(h.genreqs(s).length, 1, `自调度不得重复发 GENREQ，实得 ${h.genreqs(s).length}`);
-  eq(h.genreqs(s)[0].data.scheduler, 'service');
+  eq(h.genreqs(s)[0].data.scheduler, undefined, '别家通路的 GENREQ 也没有 scheduler 成员');
   eq(h.providerTitles(s).length, 0, '自调度不该再生成（等主包那条回来）');
 });
 
@@ -711,6 +730,78 @@ await test('长上下文不退化：每轮长消息都刷新标题，且首条�
   const firstHumanSeq = s.events.find((e) => e.type === 'user/message' && e.data.source?.kind === 'user').seq;
   for (const t of h.providerTitles(s)) {
     assert((t.data.messageSeqs ?? []).includes(firstHumanSeq), `每版选材都该含首条锚，实得 [${t.data.messageSeqs}]`);
+  }
+});
+
+// ── [7] 主线名直写（外部账本命中 ⇒ 标题直接用主线名，一次模型调用都不花）──
+process.stdout.write('\n[7] 主线名直写\n');
+
+/** 在临时目录造一份最小账本：`_lines.json` + `_sids/<lineId>.jsonl`。 */
+function makeLedger(tmpHome, lineId, lineName, sids) {
+  const dir = join(tmpHome, 'mainline-ledger');
+  const sidsDir = join(dir, '_sids');
+  mkdirSync(sidsDir, { recursive: true });
+  writeFileSync(join(dir, '_lines.json'), JSON.stringify({ v: 1, lines: [{ lineId, line: lineName }] }, null, 2), 'utf8');
+  writeFileSync(join(sidsDir, `${lineId}.jsonl`), sids.map((sid) => JSON.stringify({ v: 1, sid, how: 'claim' })).join('\n') + '\n', 'utf8');
+}
+
+await test('账本命中 ⇒ 两条通路都直接写主线名、不调模型，且幂等', async () => {
+  const tmpHome = mkdtempSync(join(tmpdir(), 'stl-mainline-'));
+  try {
+    makeLedger(tmpHome, 'l1', '主线 Alpha', ['ml-1']);
+    const h = makeHarness({ mainline: { home: tmpHome, cacheMs: 0 } });
+    const s = h.makeSession('ml-1');
+    h.turnStart(s);
+    h.human(s, '第一轮的消息');
+    h.mainRequest(s);                        // 自调度通路
+    await settle(6);
+    eq(h.streamCalls.filter((c) => c.purpose === 'session-title').length, 0, '命中主线名 ⇒ 一次标题模型调用都不该有');
+    eq(h.providerTitles(s).at(-1)?.data.title, '主线 Alpha', '标题应直接是主线名');
+
+    // 幂等：基名已经是主线名 ⇒ 一条事件都不写
+    const before = h.providerTitles(s).length;
+    h.human(s, '第二轮的消息');
+    h.mainRequest(s);
+    await settle(6);
+    eq(h.providerTitles(s).length, before, '基名已是主线名 ⇒ 不重复写标题');
+
+    // 服务通路（主包调 provider.generate）同样直写 —— 只拦自调度会被周期性顶掉
+    const lastHuman = s.events.filter((e) => e.type === 'user/message').at(-1);
+    const r = await h.mainPathGenerate(s, [lastHuman.seq]);
+    eq(r.title, '主线 Alpha', '服务通路也应直接交主线名');
+  } finally {
+    rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+await test('账本未命中 / 预置标题的会话 ⇒ 回落自动生成（fail-open）', async () => {
+  const tmpHome = mkdtempSync(join(tmpdir(), 'stl-mainline-miss-'));
+  try {
+    makeLedger(tmpHome, 'l1', '主线 Alpha', ['someone-else']);   // 账本里没有这个会话
+    const h = makeHarness({ mainline: { home: tmpHome, cacheMs: 0 } });
+    const s = h.makeSession('unknown-1');
+    h.turnStart(s);
+    h.header(s, 'deepseek-official', 'deepseek-flash');
+    h.human(s, '第一轮的消息');
+    h.mainRequest(s);
+    await settle(6);
+    assert(h.streamCalls.filter((c) => c.purpose === 'session-title').length >= 1, '未命中 ⇒ 照旧调模型生成');
+    assert(h.providerTitles(s).length >= 1, '未命中 ⇒ 照旧产出标题');
+
+    // 预置标题（创建期写过卡片标题）的会话：即使账本命中也不套主线名
+    const h2 = makeHarness({ mainline: { home: tmpHome, cacheMs: 0 } });
+    makeLedger(tmpHome, 'l1', '主线 Alpha', ['card-ml']);
+    const s2 = h2.makeSession('card-ml');
+    h2.userRename(s2, '卡片标题');            // 早于 turn/start ⇒ bootstrap，不算 pin
+    h2.turnStart(s2);
+    h2.header(s2, 'deepseek-official', 'deepseek-flash');
+    h2.human(s2, '卡片会话的第一条消息');
+    h2.mainRequest(s2);
+    await settle(6);
+    assert(h2.streamCalls.filter((c) => c.purpose === 'session-title').length >= 1, '预置标题的会话 ⇒ 不走主线名直写');
+    assert(h2.providerTitles(s2).every((t) => t.data.title !== '主线 Alpha'), '预置标题不得被主线名顶掉');
+  } finally {
+    rmSync(tmpHome, { recursive: true, force: true });
   }
 });
 

@@ -50,7 +50,7 @@ This component is one implementation of the operations system described in
 The design basis follows the fixed four questions agreed with that documentation repository:
 
 - **Why it exists and where its boundary is** → see *Autonomous Operations Steward* **§2 session lifecycle coverage matrix**, and *System Panorama and House Rules* **§3.8 autonomy of the session lifecycle**
-- **Its compatibility window with the host** → see *Multi-machine Handoff and Cloud Relay* **§4.5 "compatibility requirements"** (see also section 6, "Compatibility", of this README)
+- **Its compatibility window with the host** → see *Multi-machine Handoff and Cloud Relay* **§4.5 "compatibility requirements"** (see also section 7, "Compatibility", of this README)
 - **This component's own pitfalls and measurements** → the "Known limitations" section of this README
 - **Documentation repository** → Gitee (mirror) <https://gitee.com/kira905/ops-handoff-design>
   ｜ GitHub (primary) <https://github.com/kira905/ops-handoff-design>
@@ -71,13 +71,14 @@ The design basis follows the fixed four questions agreed with that documentation
 | Self-managed scheduling | The host's automatic scheduling cannot get a launch opportunity after the first turn (see the file header of `lib/index.js`), so this plugin triggers from the `llm/stream` hook itself; the two routes are de-duplicated by **turn claim**, so a turn generates at most once |
 | Minimum-information threshold | When a title already exists and this turn added too little text (default: fewer than 20 characters), it does not regenerate, so short noise such as "ok" or "got it" cannot drag the title off course |
 | Kill switch | One JSON file or one environment variable stops it (**without a restart**); once off, zero writes and zero tokens |
+| Mainline names (optional) | When the host keeps a "session → mainline" ledger, the title becomes the mainline name (no guessing, no model call); a missing ledger falls back to automatic generation, and both trigger chains are gated (see section 6) |
 | Sub-agent sessions are skipped | Sub-agent / derived sessions are neither prefixed nor summarised |
 
 ---
 
 ## 2. Prerequisites
 
-- DSH host package `>= 0.2.0-rc.2 < 0.3.0` (compatibility details in section 6)
+- DSH host package `>= 0.2.0-rc.2 < 0.3.0` (compatibility details in section 7)
 - Node.js `>= 18`
 - A DSH installation in which you can modify `profiles/<name>/` (the default profile name is `web`)
 
@@ -250,7 +251,59 @@ A top-level shorthand `{ "enabled": false }` is also supported. `enabled:true` =
 
 ---
 
-## 6. Compatibility
+## 6. Mainline names (optional)
+
+An automatic title is, in the end, a guess made from the last few human messages. If your host
+already keeps a "session → mainline" ledger (task boards, handoffs and relay workflows all produce
+one), the title does not have to guess: writing the mainline name is steadier, cheaper, and stops
+the same piece of work being titled differently on every turn.
+
+### Ledger format (read-only for this plugin)
+
+```
+<home>/mainline-ledger/
+  _lines.json            # { "lines": [ { "lineId": "l-1", "line": "mainline name" }, … ] }
+  _sids/
+    l-1.jsonl            # one JSON per line: { "v":1, "sid":"<bare uuid or session-<uuid>>", "how":"claim" }
+```
+
+- `_lines.json` is the **only source of names**; `_sids/*.jsonl` only records which session
+  belongs to which line (append-only).
+- A `sid` is normalized (leading `session-` stripped, lower-cased) before it is compared with the
+  current session id.
+- The ledger is **maintained by you**; this plugin only reads it and only understands the shape above.
+
+### Behaviour
+
+| Situation | Result |
+|---|---|
+| The session matches a mainline name | The title becomes the name (with the relay axis kept, e.g. `【续】name`); **no title-model call at all** |
+| The base name already is that name | Nothing is written (idempotent) |
+| Ledger missing / corrupt / session not listed | Falls back to automatic generation (**fail-open**) |
+| The session matches two mainlines with **different names** | No guessing: falls back and logs a `warn` |
+| Sessions with a pre-set title (task cards etc.) | The mainline name is **not** applied (the sidebar relies on that title) |
+
+Disable with `"mainline": { "enabled": false }`; relocate with
+`"mainline": { "ledgerDir": "<absolute path or a directory name under home>" }`.
+
+> Why both trigger chains are gated: the self-scheduler and the host service are **two independent
+> chains**, and the later writer wins — gating only one lets the other overwrite the name periodically.
+
+### Relay axis (`【续】` / `【已交接】`)
+
+A title can carry **two** prefix layers, written by different parties:
+
+- **State axis** (`【运行】` / `【完成】`): rewritten by this plugin on every turn boundary.
+- **Relay axis** (default `【续】` / `【已交接】`, see `marks.relayAxis`): written by handoff / relay
+  scripts. This plugin **preserves it and never writes it**, and never eats it as a state prefix.
+
+Final shape = `【state】【relay】base` (e.g. `【运行】【续】migration wrap-up`). Bracketed words that are
+not in the dictionary (e.g. `【cross-module】X`) are left alone — only dictionary prefixes are
+stripped, at most three layers deep.
+
+---
+
+## 7. Compatibility
 
 | Host version | Status |
 |---|---|
@@ -265,7 +318,7 @@ search the new host sources for every name in it — if a name is still there, f
 
 ---
 
-## 7. Known limitations
+## 8. Known limitations
 
 1. **It depends on the host's private event and service names.** This plugin is not an official plugin, and a host rename breaks it (the symptom: titles stop refreshing,
    and the log may be entirely silent). There is exactly one file to review: `lib/host-protocol.js`.
@@ -280,16 +333,17 @@ search the new host sources for every name in it — if a name is still there, f
 6. **The `bundles` loading route is now measured (since 0.2.5)**: the package ships its own `cordis.patch.yml` (`dsh.bundle`); on an isolated instance (separate `DSH_HOME`, port 3090, host `0.2.0-rc.2`) `dsh plugin --profile bundlecheck add <tgz>` installed the local tarball and the startup log held only the `dsh web: http://…` line — no `declares no dsh.bundle`, no inactive entry; `--dump-config` lists this plugin's row and marks the official `session-title-llm` as `patched by @kira905/dsh-session-title-live`.
 7. **Group chat / multi-user scenarios are not assessed**: this plugin takes its text on the basis that "a human message = `source.kind==='user'`";
    if your deployment has messages from several sources, the selection rule needs to be checked by you.
-8. **The `0.1.5` line has only had a static check, not an end-to-end measurement** (see section 6).
+8. **The `0.1.5` line has only had a static check, not an end-to-end measurement** (see section 7).
 
 ---
 
-## 8. Repository layout
+## 9. Repository layout
 
 ```
 lib/
   index.js           the plugin itself: provider registration, self-managed scheduling, turn prefixes, pin ledger, kill switch
   config.js          configuration layer: defaults ⊕ config file ⊕ host config + validation + text dictionary
+  mainline-title.js  mainline lookup (read-only ledger; a hit means the title is the mainline name, no model call)
   host-protocol.js   host protocol constants (event names / service names) — the only file to review when upgrading the host
 examples/
   session-title-live.config.example.json   configuration example (every entry is its default value)
@@ -308,7 +362,7 @@ _test/
 
 ---
 
-## 9. Development and testing
+## 10. Development and testing
 
 ```bash
 # 1) Static verification (syntax + configuration-layer behaviour + sanitization scan; inject BUILD_* as described at the top of the script
@@ -320,7 +374,7 @@ node scripts/verify-source.mjs .
 # 2) Clean-path end to end (its own temporary home + non-default configuration; cleaned up automatically afterwards, --keep retains it for troubleshooting)
 node scripts/test-e2e.mjs
 
-# 3) The three offline unit tests (fake host, sub-second, zero side effects)
+# 3) The four offline unit tests (fake host, sub-second, zero side effects; includes _test/test-mainline-title.mjs)
 node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs
 
 # 4) Read-only check against a **running isolated instance** (whether the protocol constants / event shapes still hold; read-only, sends no messages)
@@ -331,7 +385,7 @@ The release process (version-number policy / changelog conventions / pre-release
 
 ---
 
-## 10. Related components
+## 11. Related components
 
 Sibling components in the same DSH ecosystem — separate repositories, separate versions, separate licenses. They all link back to the same documentation repository,
 [`ops-handoff-design`](https://github.com/kira905/ops-handoff-design)
@@ -341,7 +395,7 @@ Sibling components in the same DSH ecosystem — separate repositories, separate
 |---|---|---|
 | `dsh-session-title-live` | Live session titles that follow the conversation | **this repo** |
 | [`dsh-butler-archive`](https://github.com/kira905/dsh-butler-archive) | Session archiving (physically moves old sessions out of the `sessions` directory; list / preview / restore / delete) | Two sides of the same problem: this repository treats "the title no longer matches what the session is about", that one treats "old sessions occupy startup and load cost" — both keep **the sidebar, the only entry point, usable** |
-| [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | Read-only ecosystem overview panel (plugin loading / patches / skill frontmatter / upgrade risk) | Its first check, "load state", reads the boot manifest of the host's home page — **whether this plugin actually loaded is visible there at a glance** (this plugin has no browser half, and its only loading route is the `cordis.patch.yml` insert, see item 6 of section 7) |
+| [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | Read-only ecosystem overview panel (plugin loading / patches / skill frontmatter / upgrade risk) | Its first check, "load state", reads the boot manifest of the host's home page — **whether this plugin actually loaded is visible there at a glance** (this plugin has no browser half, and its only loading route is the `cordis.patch.yml` insert, see item 6 of section 8) |
 | [`dsh-diagnostic-tools`](https://github.com/kira905/dsh-diagnostic-tools) | Diagnostic toolkit: dependency-closure checks + chat image attachment reconciliation | Run its `closure/` before and after a host upgrade; this plugin keeps the host contracts in a single file (`lib/host-protocol.js`), and that list is exactly the input to check item by item during an upgrade |
 | [`dsh-task-board-local`](https://github.com/kira905/dsh-task-board-local) | Self-maintained task board (a card = one real session + a human acceptance gate) | **The immediate beneficiary of this plugin**: the execution session of a board card is an ordinary session, and where a card got to — and whether it closed — is read off the title state prefixes here — **if titles cannot be trusted, progress on the board is just a sentence** |
 | [`dsh-firstaid`](https://github.com/kira905/dsh-firstaid) | Zero-dependency incident toolkit: four on-site scenarios (cannot start / frozen / need to undo a change / data deleted) behind one entry point | The fallback when something goes wrong: once this plugin (or the host) **cannot start** or the interface freezes, run it to produce a health report before deciding whether to act |
@@ -351,7 +405,7 @@ Sibling components in the same DSH ecosystem — separate repositories, separate
 
 ---
 
-## 11. License
+## 12. License
 
 **Decided (2026-10-16): `AGPL-3.0-only plus a commercial license` (dual licensing).**
 

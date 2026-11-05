@@ -57,7 +57,14 @@
       #   marks:
       #     prefix: { running: '【运行】', done: '【完成】' }
       #     textToState: { '运行': running, '完成': done, '待命': idle, '已中断': interrupted }
+      #     relayAxis: ['续', '已交接']          # 接力轴：只保留、从不自己写
       #     baseFallback: 会话
+      #   # 主线名直写（可选）：宿主侧若有「会话 → 主线」账本，标题直接用主线名、不调模型。
+      #   # 账本形状见 README 第六节；目录不存在即回落自动生成（fail-open）。
+      #   mainline:
+      #     enabled: true
+      #     ledgerDir: mainline-ledger          # 相对 home，也可写绝对路径
+      #     cacheMs: 5000
       #   killSwitch:
       #     file: dsh-session-title-live.json
       #     moduleId: session-title-live

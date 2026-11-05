@@ -70,7 +70,7 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 设计依据（对应文档仓约定的固定四问）：
 
 - **它为什么存在、边界在哪** → 见《自治式运维管家》**§2 会话生命周期覆盖矩阵**，以及《体系全景与家规》**§3.8 会话生命周期的自治**
-- **它与宿主版本的兼容区间** → 见《多机交接与云中继》**§4.5「兼容性要求」**（另见本 README 第六节「兼容性」）
+- **它与宿主版本的兼容区间** → 见《多机交接与云中继》**§4.5「兼容性要求」**（另见本 README 第七节「兼容性」）
 - **本组件特有的坑与实测** → 见本 README「已知限制」一节
 - **文档仓地址** → Gitee（镜像）<https://gitee.com/kira905/ops-handoff-design>
   ｜ GitHub（主）<https://github.com/kira905/ops-handoff-design>
@@ -91,13 +91,14 @@ DSH 自带的标题机制只在**会话第一条用户消息**时生成一次标
 | 自建调度 | 主包的自动调度在首轮之后拿不到启动时机（见 `lib/index.js` 文件头），所以本插件自己在 `llm/stream` 钩子里触发；两条通路由**轮次认领**去重，一轮最多一次生成 |
 | 最小信息门槛 | 已有标题时，本轮新增消息太少（默认 < 20 字）就不重生成，避免「好」「收到」这类短噪声把标题带跑 |
 | 活开关 | 一个 JSON 文件 / 一个环境变量即可停掉（**不重启**），关掉后零写入、零 token |
+| 主线名直写（可选） | 宿主侧有「会话 → 主线」账本时，标题直接写主线名（不猜、不花模型调用）；账本缺失即回落自动生成，两条触发链都拦（见第六节） |
 | 子代理会话跳过 | 子代理 / 派生会话不打标、不生成 |
 
 ---
 
 ## 二、前置条件
 
-- DSH 主包 `>= 0.2.0-rc.2 < 0.3.0`（兼容性细节见第六节）
+- DSH 主包 `>= 0.2.0-rc.2 < 0.3.0`（兼容性细节见第七节）
 - Node.js `>= 18`
 - 一个能改 `profiles/<name>/` 的 DSH 安装（默认 profile 名为 `web`）
 
@@ -237,7 +238,12 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 | `markProvider` | `dsh-session-title-live#turn-mark` | 打标写回时 `source.provider` 的名字（用于识别"这条是我们写的"） |
 | `marks.prefix` | `{running:'【运行】', done:'【完成】'}` | 状态 → 前缀文本 |
 | `marks.textToState` | `{运行:running, 完成:done, 待命:idle, 已中断:interrupted}` | 前缀文本 → 状态（**键不要带括号**） |
+| `marks.relayAxis` | `['续', '已交接']` | 接力轴词表（**只保留、从不自己写**；键不要带括号） |
 | `marks.baseFallback` | `会话` | 标题只剩前缀时的兜底基名 |
+| `mainline.enabled` | `true` | 主线名直写总开关（关掉 = 完全不读账本） |
+| `mainline.ledgerDir` | `mainline-ledger` | 账本目录（相对 `home`，也可写绝对路径） |
+| `mainline.home` | 不设 | 账本所在 home（省略 = 按 `SESSION_TITLE_LIVE_HOME` > `DSH_HOME` > `~/.dsh`） |
+| `mainline.cacheMs` | `5000` | 账本索引缓存毫秒（`0` = 每次现读） |
 | `killSwitch.file` | `dsh-session-title-live.json` | 活开关文件名（相对 `home`）或绝对路径 |
 | `killSwitch.moduleId` | `session-title-live` | 开关文件里 `modules.<id>.enabled` 的 id |
 | `killSwitch.cacheMs` | `3000` | 读盘缓存（手改文件 ≤ 该毫秒数生效） |
@@ -276,7 +282,55 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 
 ---
 
-## 六、兼容性
+## 六、主线名直写（可选）
+
+自动标题本质是「从最近几条人类消息猜一个短标题」。如果宿主侧本来就有一份
+「会话 → 主线」的账本（任务卡、交接、接力这类工作流都会产生），那标题**不必猜** ——
+直接写主线名更稳、更省，也不会出现「同一件事的会话每轮换一个说法」。
+
+### 账本格式（本插件只读，不写）
+
+```
+<home>/mainline-ledger/
+  _lines.json            # { "lines": [ { "lineId": "l-1", "line": "主线名" }, … ] }
+  _sids/
+    l-1.jsonl            # 每行一条：{ "v":1, "sid":"<裸 uuid 或 session-<uuid>>", "how":"claim" }
+```
+
+- **唯一名字真源**是 `_lines.json`；`_sids/*.jsonl` 只记「哪个会话属于哪条线」（append-only）。
+- 带 `sid` 的行会被归一化（去掉 `session-` 前缀、转小写）后与当前会话 id 比对。
+- 账本由**你自己维护**（本插件只读）：写在哪、怎么写是你的工作流的约定，本插件只认上面这个形状。
+
+### 行为
+
+| 场景 | 结果 |
+|---|---|
+| 会话命中主线名 | 标题写成 `主线名`（标题上有接力轴时写成 `【续】主线名`）；**一次标题模型调用都不花** |
+| 基名已经是这条主线名 | 一条事件都不写（幂等） |
+| 账本不存在 / 损坏 / 没这条会话 | 回落自动生成（**fail-open**） |
+| 同一会话命中两条**不同名**主线 | 不猜，回落自动生成，并打一条 `warn` 日志 |
+| 预置标题的会话（任务卡等） | **不套**主线名（侧边栏靠那个标题认任务） |
+
+关掉：`"mainline": { "enabled": false }`。
+换目录：`"mainline": { "ledgerDir": "<绝对路径或相对 home 的目录名>" }`。
+
+> 为什么两条触发链都要拦：自建调度与主包服务是**两条独立触发链**，谁后写谁赢 ——
+> 只拦一条的话，主线名会被另一条周期性覆盖掉。
+
+### 接力轴（`【续】` / `【已交接】`）
+
+标题上可能同时叠**两层**前缀，来源不同、命运也不同：
+
+- **状态轴**（`【运行】` / `【完成】`）：本插件按回合边界**每轮重写**；
+- **接力轴**（默认 `【续】` / `【已交接】`，见 `marks.relayAxis`）：交接 / 接力脚本写入的，
+  本插件**只保留、从不自己写**，也绝不把它当状态轴吃掉。
+
+最终形态 = `【状态】【接力轴】基名`（例如 `【运行】【续】迁移脚本收尾`）。
+基名自带的方括号（如 `【跨模块】X`）不受影响 —— 只剥词表内的前缀、最多三层。
+
+---
+
+## 七、兼容性
 
 | 主包版本 | 状态 |
 |---|---|
@@ -291,7 +345,7 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
 
 ---
 
-## 七、已知限制
+## 八、已知限制
 
 1. **依赖主包的私有事件 / 服务名**。本插件不是官方插件，主包改名字就会失效（现象：标题不再刷新，
    日志里可能一片安静）。复核入口只有一个文件：`lib/host-protocol.js`。
@@ -309,16 +363,17 @@ grep -n "id:" <DSH_HOME>/profiles/<name>/cordis.patch.yml
    `--dump-config` 里能看到本插件行，且官方 `session-title-llm` 标着 `patched by @kira905/dsh-session-title-live`。
 7. **群聊 / 多用户场景未评估**：本插件按"人类消息 = `source.kind==='user'`"取文本，
    若你的部署里有多来源消息，选材口径需自行核对。
-8. **`0.1.5` 线只做过静态核对、未端到端实测**（见第六节）。
+8. **`0.1.5` 线只做过静态核对、未端到端实测**（见第七节）。
 
 ---
 
-## 八、仓库结构
+## 九、仓库结构
 
 ```
 lib/
   index.js           插件主体：provider 注册、自建调度、回合打标、pin 账本、活开关
   config.js          配置层：默认值 ⊕ 配置文件 ⊕ 宿主 config + 校验 + 文案字典
+  mainline-title.js  主线名反查（只读账本；命中 ⇒ 标题直接用主线名，不调模型）
   host-protocol.js   主包协议常量（事件名 / 服务名）—— 升级主包时唯一要核对的文件
 examples/
   session-title-live.config.example.json   配置示例（逐项都是默认值）
@@ -337,7 +392,7 @@ _test/
 
 ---
 
-## 九、开发与测试
+## 十、开发与测试
 
 ```bash
 # 1) 静态验证（语法 + 配置层行为 + 脱敏扫描；要在本机覆盖实名规则时注入 BUILD_* 见脚本头部）
@@ -348,7 +403,7 @@ node scripts/verify-source.mjs .
 # 2) 干净路径端到端（自建临时 home + 非默认配置，跑完自动清理；--keep 保留以便排障）
 node scripts/test-e2e.mjs
 
-# 3) 三个离线单测（假宿主，秒级，零副作用）
+# 3) 四个离线单测（假宿主，秒级，零副作用；含 _test/test-mainline-title.mjs）
 node _test/test-mark.mjs && node _test/test-self-schedule.mjs && node _test/test-kill-switch.mjs
 
 # 4) 对**运行中的隔离实例**做只读核对（协议常量 / 事件形状是否还成立；只读，不发消息）
@@ -359,7 +414,7 @@ node scripts/verify-live.mjs --base http://127.0.0.1:3090 --home <隔离实例 h
 
 ---
 
-## 十、相关组件
+## 十一、相关组件
 
 同属 DSH 生态的伴生组件，各自独立仓、独立版本、许可各自独立；它们都回链到同一份文档仓
 [`ops-handoff-design`](https://github.com/kira905/ops-handoff-design)
@@ -369,7 +424,7 @@ node scripts/verify-live.mjs --base http://127.0.0.1:3090 --home <隔离实例 h
 |---|---|---|
 | `dsh-session-title-live` | 会话标题跟着对话实时更新 | **本仓** |
 | [`dsh-butler-archive`](https://github.com/kira905/dsh-butler-archive) | 会话归档管理（把老会话物理移出 `sessions` 目录，可列出 / 预览 / 恢复 / 删除） | 同一个问题的两面：本仓治「标题跟会话内容对不上」，它治「老会话占着启动与加载开销」——都为了**侧边栏这个唯一入口还能用** |
-| [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | 只读生态总览面板（插件加载 / 补丁 / 技能 frontmatter / 升级风险） | 它的第 ① 类「加载状态」抓的就是宿主首页的 boot 清单——**本插件到底加载上了没有，在那里一眼能看到**（本插件没有 client 半，加载方式只有 `cordis.patch.yml` 的 insert，见第七节第 6 条） |
+| [`dsh-ecosystem-panel`](https://github.com/kira905/dsh-ecosystem-panel) | 只读生态总览面板（插件加载 / 补丁 / 技能 frontmatter / 升级风险） | 它的第 ① 类「加载状态」抓的就是宿主首页的 boot 清单——**本插件到底加载上了没有，在那里一眼能看到**（本插件没有 client 半，加载方式只有 `cordis.patch.yml` 的 insert，见第八节第 6 条） |
 | [`dsh-diagnostic-tools`](https://github.com/kira905/dsh-diagnostic-tools) | 诊断取证工具组：依赖闭包体检 + 会话图片附件对账 | 宿主升级前后先跑它的 `closure/`；本插件把宿主契约集中在一个文件（`lib/host-protocol.js`），那份清单就是升级时要逐条核对的输入 |
 | [`dsh-task-board-local`](https://github.com/kira905/dsh-task-board-local) | 自维护任务看板（卡片 = 一次真实会话 + 人工验收闸） | **本插件的直接受益面**：看板卡的执行会话就是普通会话，卡跑到哪一步、有没有收尾，靠的正是这里的标题状态前缀——**标题不可信，看板上的进度就只是一句话** |
 | [`dsh-firstaid`](https://github.com/kira905/dsh-firstaid) | 零依赖急救台：起不来 / 假死 / 要撤销改动 / 数据被删四类现场压成一个入口 | 出事的兜底：本插件（或宿主）一旦**起不来**、界面假死，先跑它生成体检报告，再决定动不动手 |
@@ -379,7 +434,7 @@ node scripts/verify-live.mjs --base http://127.0.0.1:3090 --home <隔离实例 h
 
 ---
 
-## 十一、许可
+## 十二、许可
 
 **已定稿（2026-10-16）：`AGPL-3.0-only + 商业授权`（双许可）。**
 

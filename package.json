@@ -1,6 +1,6 @@
 {
   "name": "@kira905/dsh-session-title-live",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "type": "module",
   "main": "lib/index.js",
@@ -37,15 +37,7 @@
   },
   "engines": {
     "node": ">=18",
-    "dsh": ">=0.2.0-rc.2 <0.3.0"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/dsh": {
-      "optional": true
-    }
+    "dsh": ">=0.2.0"
   },
   "scripts": {
     "verify": "node scripts/verify-source.mjs .",
